@@ -99,9 +99,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Get project files from GIT
-        run: git clone https://github.com/smoa04/4IT572_docker.git
-
       - name: Checkout
         uses: actions/checkout@v3
 
