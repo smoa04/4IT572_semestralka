@@ -112,3 +112,6 @@ jobs:
             ./node_modules
             ./build
           key: ${{ runner.os }}-build-${{ github.run_id }}
+
+      - name: call the ec2_deploy.yml
+        include_tasks: ec2_deploy.yml
