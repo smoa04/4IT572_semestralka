@@ -99,89 +99,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Code checkout
-        uses: actions/checkout@v2.5.0
+      - name: Get project files from GIT
+        run: git clone https://github.com/smoa04/4IT572_docker.git
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install ansible
+        run: pip3 install ansible boto boto3
+
+      - name: Install AWS
+        run: ansible-galaxy collection install amazon.aws
+
+      - name: Install python
+        uses: actions/setup-python@v4
         with:
-          token: ${{ secrets.WORKFLOW_TOKEN }}
+          python-version: '3.10'
 
-      - name: Load Node modules and build folder
-        uses: actions/cache@v3.0.11
-        with:
-          path: |
-            ~/.npm
-            ./node_modules
-            ./build
-          key: ${{ runner.os }}-build-${{ github.run_id }}
-
-      - name: Deploy to EC2
-        hosts: localhost
-        connection: local
-
-        tasks:
-          - name: Launch EC2 Instance
-            ec2:
-              instance_type: t2.micro
-              image: ami-0b0dcb5067f052a63
-              region: us-east-1
-              key_name: devops
-              vpc_subnet_id: subnet-0aed653a4b2e6c6f7
-              group: eshop
-              count: 1
-              assign_public_ip: yes
-              wait: yes
-              aws_access_key: "{{ access_key }}"
-              aws_secret_key: "{{ secret_key }}"
-              security_token: "{{ session_token }}"
-            register: ec2
-          - name: Add instance host to group
-            add_host:
-              hostname: "{{ item.public_ip }}"
-              groupname: launched
-            loop: "{{ ec2.instances }}"
-          - name: Wait for ssh connection
-            delegate_to: "{{ item.public_dns_name }}"
-            wait_for_connection:
-              delay: 30
-              timeout: 300
-            loop: "{{ ec2.instances }}"
-
-      - name: Configure EC2
-        hosts: launched
-        connection: ssh
-
-        tasks:
-          - name: Install Git and Docker
-            yum:
-              name:
-                - docker
-                - git
-              state: latest
-              update_cache: yes
-            become: yes
-          - service:
-              name: docker
-              state: started
-              enabled: yes
-            become: yes
-          - name: Start docker on startup
-            shell: systemctl enable docker
-            become: yes
-          - name: Set rights to Docker
-            shell: usermod -a -G docker ec2-user
-            become: yes
-
-          - name: Get project files from GIT
-            git:
-              repo: "https://github.com/smoa04/4IT572_docker.git"
-              dest: ./app
-          - name: Build docker image
-            shell: cd app && docker build -t myeshop:latest .
-            become: yes
-          - name: Run eshop
-            shell: docker run -p 80:3000 myeshop
-            async: 45
-            poll: 0
-            become: yes
-          - wait_for:
-              port:
-                80
+      - name: Run playbook
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
+        run: |
+            echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > .ansible_vault_password
+            echo "${{ secrets.EC2_SSH_KEY }}" > .ec2_ssh_key.pem
+            chmod 400 .ec2_ssh_key.pem
+            ansible-playbook ansible/ec2_deploy.yml --vault-password-file .ansible_vault_password --key-file .ec2_ssh_key.pem --user ec2-user
