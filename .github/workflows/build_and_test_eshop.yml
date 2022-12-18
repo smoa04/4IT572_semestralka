@@ -99,16 +99,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Code checkout
-        uses: actions/checkout@v2.5.0
-        with:
-          token: ${{ secrets.WORKFLOW_TOKEN }}
+      - name: Get project files from GIT
+        run: git clone https://github.com/smoa04/4IT572_docker.git
 
-      - name: Load Node modules and build folder
-        uses: actions/cache@v3.0.11
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install ansible
+        run: pip3 install ansible boto boto3
+
+      - name: Install AWS
+        run: ansible-galaxy collection install amazon.aws
+
+      - name: Install python
+        uses: actions/setup-python@v4
         with:
-          path: |
-            ~/.npm
-            ./node_modules
-            ./build
-          key: ${{ runner.os }}-build-${{ github.run_id }}
+          python-version: '3.10'
+
+      - name: Run playbook
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
+        run: |
+            echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > .ansible_vault_password
+            echo "${{ secrets.EC2_KEY }}" > .ec2_key.pem
+            chmod 400 .ec2_key.pem
+            ansible-playbook ansible/ec2_deploy.yml --vault-password-file .ansible_vault_password --key-file .ec2_key.pem --user ec2-user
